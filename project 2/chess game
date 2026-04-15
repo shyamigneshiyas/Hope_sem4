@@ -1,0 +1,252 @@
+import java.util.*;
+
+public class chess {
+
+    enum Color { WHITE, BLACK }
+
+    static abstract class Piece {
+        Color color;
+        String symbol;
+        boolean moved = false;
+
+        Piece(Color color, String symbol) {
+            this.color = color;
+            this.symbol = symbol;
+        }
+
+        abstract boolean isValidMove(Board board, int sr, int sc, int er, int ec);
+    }
+
+    static class Pawn extends Piece {
+        Pawn(Color color) {
+            super(color, color == Color.WHITE ? "P" : "p");
+        }
+
+        boolean isValidMove(Board board, int sr, int sc, int er, int ec) {
+            int dir = color == Color.WHITE ? -1 : 1;
+
+            if (sc == ec && board.get(er, ec) == null) {
+                if (er == sr + dir) return true;
+
+                if (!moved && er == sr + 2 * dir && board.get(sr + dir, sc) == null)
+                    return true;
+            }
+
+            return Math.abs(ec - sc) == 1 &&
+                    er == sr + dir &&
+                    board.get(er, ec) != null &&
+                    board.get(er, ec).color != color;
+        }
+    }
+
+    static class Rook extends Piece {
+        Rook(Color color) {
+            super(color, color == Color.WHITE ? "R" : "r");
+        }
+
+        boolean isValidMove(Board b, int sr, int sc, int er, int ec) {
+            return (sr == er || sc == ec) && b.clearPath(sr, sc, er, ec);
+        }
+    }
+
+    static class Knight extends Piece {
+        Knight(Color color) {
+            super(color, color == Color.WHITE ? "N" : "n");
+        }
+
+        boolean isValidMove(Board b, int sr, int sc, int er, int ec) {
+            int dr = Math.abs(sr - er);
+            int dc = Math.abs(sc - ec);
+            return (dr == 2 && dc == 1) || (dr == 1 && dc == 2);
+        }
+    }
+
+    static class Bishop extends Piece {
+        Bishop(Color color) {
+            super(color, color == Color.WHITE ? "B" : "b");
+        }
+
+        boolean isValidMove(Board b, int sr, int sc, int er, int ec) {
+            return Math.abs(sr - er) == Math.abs(sc - ec) &&
+                    b.clearPath(sr, sc, er, ec);
+        }
+    }
+
+    static class Queen extends Piece {
+        Queen(Color color) {
+            super(color, color == Color.WHITE ? "Q" : "q");
+        }
+
+        boolean isValidMove(Board b, int sr, int sc, int er, int ec) {
+            return ((sr == er || sc == ec) ||
+                    Math.abs(sr - er) == Math.abs(sc - ec))
+                    && b.clearPath(sr, sc, er, ec);
+        }
+    }
+
+    static class King extends Piece {
+        King(Color color) {
+            super(color, color == Color.WHITE ? "K" : "k");
+        }
+
+        boolean isValidMove(Board b, int sr, int sc, int er, int ec) {
+            return Math.abs(sr - er) <= 1 &&
+                    Math.abs(sc - ec) <= 1;
+        }
+    }
+
+    static class Board {
+        Piece[][] grid = new Piece[8][8];
+        Color turn = Color.WHITE;
+
+        Board() {
+            setup();
+        }
+
+        void setup() {
+            for (int i = 0; i < 8; i++) {
+                grid[1][i] = new Pawn(Color.BLACK);
+                grid[6][i] = new Pawn(Color.WHITE);
+            }
+
+            grid[0][0] = grid[0][7] = new Rook(Color.BLACK);
+            grid[7][0] = grid[7][7] = new Rook(Color.WHITE);
+
+            grid[0][1] = grid[0][6] = new Knight(Color.BLACK);
+            grid[7][1] = grid[7][6] = new Knight(Color.WHITE);
+
+            grid[0][2] = grid[0][5] = new Bishop(Color.BLACK);
+            grid[7][2] = grid[7][5] = new Bishop(Color.WHITE);
+
+            grid[0][3] = new Queen(Color.BLACK);
+            grid[7][3] = new Queen(Color.WHITE);
+
+            grid[0][4] = new King(Color.BLACK);
+            grid[7][4] = new King(Color.WHITE);
+        }
+
+        Piece get(int r, int c) {
+            return grid[r][c];
+        }
+
+        boolean clearPath(int sr, int sc, int er, int ec) {
+            int dr = Integer.compare(er, sr);
+            int dc = Integer.compare(ec, sc);
+
+            sr += dr;
+            sc += dc;
+
+            while (sr != er || sc != ec) {
+                if (grid[sr][sc] != null)
+                    return false;
+
+                sr += dr;
+                sc += dc;
+            }
+
+            return true;
+        }
+
+        boolean move(String from, String to) {
+            int sc = from.charAt(0) - 'a';
+            int sr = 8 - (from.charAt(1) - '0');
+
+            int ec = to.charAt(0) - 'a';
+            int er = 8 - (to.charAt(1) - '0');
+
+            Piece p = grid[sr][sc];
+
+            if (p == null || p.color != turn)
+                return false;
+
+            if (grid[er][ec] != null &&
+                    grid[er][ec].color == p.color)
+                return false;
+
+            if (!p.isValidMove(this, sr, sc, er, ec))
+                return false;
+
+            Piece captured = grid[er][ec];
+
+            grid[er][ec] = p;
+            grid[sr][sc] = null;
+
+            if (isCheck(turn)) {
+                grid[sr][sc] = p;
+                grid[er][ec] = captured;
+                return false;
+            }
+
+            p.moved = true;
+            turn = (turn == Color.WHITE) ? Color.BLACK : Color.WHITE;
+
+            return true;
+        }
+
+        boolean isCheck(Color color) {
+            int kr = -1, kc = -1;
+
+            for (int r = 0; r < 8; r++) {
+                for (int c = 0; c < 8; c++) {
+                    if (grid[r][c] instanceof King &&
+                            grid[r][c].color == color) {
+                        kr = r;
+                        kc = c;
+                    }
+                }
+            }
+
+            for (int r = 0; r < 8; r++) {
+                for (int c = 0; c < 8; c++) {
+                    if (grid[r][c] != null &&
+                            grid[r][c].color != color) {
+
+                        if (grid[r][c].isValidMove(this, r, c, kr, kc))
+                            return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        void display() {
+            for (int r = 0; r < 8; r++) {
+                System.out.print((8 - r) + " ");
+
+                for (int c = 0; c < 8; c++) {
+                    System.out.print(
+                            (grid[r][c] == null ? "." : grid[r][c].symbol) + " "
+                    );
+                }
+
+                System.out.println();
+            }
+
+            System.out.println("  a b c d e f g h");
+            System.out.println("Turn: " + turn);
+        }
+    }
+
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        Board board = new Board();
+
+        while (true) {
+            board.display();
+
+            System.out.print("Enter move (e2 e4) or exit: ");
+            String from = sc.next();
+
+            if (from.equalsIgnoreCase("exit"))
+                break;
+
+            String to = sc.next();
+
+            if (!board.move(from, to))
+                System.out.println("Invalid move!");
+            else if (board.isCheck(board.turn))
+                System.out.println("CHECK!");
+        }
+    }
+}
